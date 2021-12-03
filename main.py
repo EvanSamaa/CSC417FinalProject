@@ -10,7 +10,7 @@ from get_nearest_vertex import *
 # example object, defined by default position and edges
 V = [(1, -1, -1),(1, 1, -1),(-1, 1, -1),(-1, -1, -1),(1, -1, 1),(1, 1, 1),(-1, -1, 1),(-1, 1, 1)]
 E = [(0, 1), (0, 3), (0, 4), (2, 1), (2, 3), (2, 7), (6, 3), (6, 4), (6, 7), (5, 1), (5, 4), (5, 7)]
-
+k_drag = 1.0e5
 cube = {"V0":np.array(V),
         "E":np.array(E),
         "q_t":np.array(V),
@@ -23,8 +23,7 @@ def pixel2rayDir(pixel, display, z, aspect_ratio, y_angle, camera_pos):
     screen_width = screen_height * aspect_ratio
     pixel[0] = (pixel[0] - display[0]/2.0)/display[0] * screen_width
     pixel[1] = (pixel[1] - display[1]/2.0)/display[1] * screen_height
-    ray = np.array([pixel[0], pixel[1], 0]) - camera_pos
-    print(ray)
+    ray = np.array([pixel[0], -pixel[1], 0]) - camera_pos
     ray = ray / np.linalg.norm(ray)
     return ray
 
@@ -94,8 +93,10 @@ def visualize(object_dict_list, dt):
                 hold = False
                 drag_handle = None
         if hold:
-            position = np.array(pygame.mouse.get_pos())
-            force = position
+            drag_current = np.array(pygame.mouse.get_pos(), dtype=np.double)
+            drag_current3D = pixel2rayDir(drag_current, display, z, aspect_ratio, y_angle, camera_pos)
+            drag_handle = drag_current3D * np.linalg.norm(drag_handle-camera_pos) + camera_pos
+            ext_force = 0
         #####################
         #   update logic    #
         #####################
@@ -108,11 +109,10 @@ def visualize(object_dict_list, dt):
         for i in range(0, len(object_dict_list)):
             draw_object(object_dict_list[i])
         if not drag_handle is None:
-            glColor3f(0.0, 1.0, 0.0)
             glPointSize(5.0)
             glBegin(GL_LINES)
             glVertex3fv(drag_handle)
-            glVertex3fv(selected_vertex)
+            glVertex3fv(object_dict_list[selected_vertex[0]]["q_t"][selected_vertex[1]])
             glEnd()
         pygame.display.flip()
         # drraw object
