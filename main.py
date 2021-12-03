@@ -4,6 +4,8 @@ import pygame
 from pygame.locals import *
 import numpy as np
 from get_nearest_vertex import *
+from interactive_forces import *
+from time_integration import update_rigid
 # the code for display and etc is based on the tutorial from
 # https://pythonprogramming.net/opengl-rotating-cube-example-pyopengl-tutorial/
 
@@ -12,10 +14,11 @@ V = [(1, -1, -1),(1, 1, -1),(-1, 1, -1),(-1, -1, -1),(1, -1, 1),(1, 1, 1),(-1, -
 E = [(0, 1), (0, 3), (0, 4), (2, 1), (2, 3), (2, 7), (6, 3), (6, 4), (6, 7), (5, 1), (5, 4), (5, 7)]
 k_drag = 1.0e5
 cube = {"V0":np.array(V),
+        "t_0":np.array(V).mean(axis=0, keepdims=True),
         "E":np.array(E),
         "q_t":np.array(V),
         "q_dot_t":np.zeros(np.array(V).shape),
-        "mass_per_particle":1}
+        "mass":1.0}
 def pixel2rayDir(pixel, display, z, aspect_ratio, y_angle, camera_pos):
 
     display = np.array(display, dtype=np.double)
@@ -36,8 +39,6 @@ def draw_object(object_dict):
         for v in edge:
             glVertex3fv(vertices[v])
     glEnd()
-def update(in_obect, dt, force):
-    return in_obect
 
 def visualize(object_dict_list, dt):
 
@@ -49,6 +50,7 @@ def visualize(object_dict_list, dt):
     aspect_ratio = float(display[0]) / float(display[1])
     y_angle = 45
     camera_pos = np.array([0.0, 0.0, -z])
+    k = 1.0e4
     ########################################
     ############# MISC setup ###############
     ########################################
@@ -73,8 +75,14 @@ def visualize(object_dict_list, dt):
     ########## begin simulation ############
     ########################################
     ext_force = []
+    default_force = []
     for i in range(0, len(object_dict_list)):
-        ext_force.append(np.zeros([3, ]))
+        vertices = object_dict_list[i]["V0"]
+        ext_force.append(np.zeros(vertices.shape))
+        grav = np.zeros(vertices.shape)
+        for i in range(vertices.shape[0]):
+            grav[i, 1] = - 98
+        default_force.append(grav)
     print("simulation begins")
     while simulate:
         #####################
@@ -91,17 +99,21 @@ def visualize(object_dict_list, dt):
                 drag_handle, selected_vertex = find_nearest_vertex(object_dict_list, drag_start3D, camera_pos)
             if event.type == pygame.MOUSEBUTTONUP and p_pressed == False:
                 hold = False
+                # ext_force[selected_vertex[0]][selected_vertex[1]] = 0
                 drag_handle = None
+        for i in range(0, len(ext_force)):
+            ext_force[i] = default_force[i].copy()
         if hold:
             drag_current = np.array(pygame.mouse.get_pos(), dtype=np.double)
             drag_current3D = pixel2rayDir(drag_current, display, z, aspect_ratio, y_angle, camera_pos)
             drag_handle = drag_current3D * np.linalg.norm(drag_handle-camera_pos) + camera_pos
-            ext_force = 0
+            force12, force21 = spring_force(k, object_dict_list[selected_vertex[0]]["q_t"][selected_vertex[1]], drag_handle, 0)
+            ext_force[selected_vertex[0]][selected_vertex[1]] = ext_force[selected_vertex[0]][selected_vertex[1]] + force12
         #####################
         #   update logic    #
         #####################
         for i in range(0, len(object_dict_list)):
-            object_dict_list[i] = update(object_dict_list[i], dt, ext_force[i])
+            object_dict_list[i] = update_rigid(object_dict_list[i], dt, ext_force[i], k)
         #####################
         #   display logic   #
         #####################
@@ -119,4 +131,4 @@ def visualize(object_dict_list, dt):
         pygame.time.wait(10)
 if __name__ == "__main__":
     print(cube["q_t"].shape)
-    visualize([cube], 0.01)
+    visualize([cube], 0.001)
